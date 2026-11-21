@@ -9,7 +9,6 @@ Rule of the project: **no file is added to `specs/assets/` without a line in thi
 |------|------------|--------|--------|---------|----------|
 | `specs/assets/pieces/wN.svg` | White knight (cburnett set) | Colin M.L. Burnett | https://github.com/lichess-org/lila/blob/master/public/piece/cburnett/wN.svg | GPLv2+ | 2026-11-20, `curl` of the raw file, 648 bytes |
 | `specs/assets/pieces/bN.svg` | Black knight (cburnett set) | Colin M.L. Burnett | https://github.com/lichess-org/lila/blob/master/public/piece/cburnett/bN.svg | GPLv2+ | 2026-11-20, `curl` of the raw file, 837 bytes |
-
 | `assets/ui.png` | Wooden UI sheet (board, panels, buttons) of the replay screen | TO FILL IN | TO FILL IN | TO FILL IN | TO FILL IN |
 | `assets/cat_sprite.png` | Cat sprite sheet (idle frames, 3 directions) | TO FILL IN | TO FILL IN | TO FILL IN | TO FILL IN |
 
@@ -21,6 +20,8 @@ SHA-256 of the files as downloaded (to prove they were not modified):
 ```
 43d8bed9cd40836335072a20f52d30237e6e2cbe304ffb13e258fa1d576c156a  wN.svg
 72e1565fbc9024015dcb6ee28d918c876523119f6f552c0a40d3118c13a67e13  bN.svg
+a8ac1bd83665edf0a04f744cdb3b15c1073d8841e153b1ef2d95fb260b481df1  ui.png
+514e8af1dfb96288e21d7d6ccbc5d8b02e52c737a6cafc296af694a15f4263cc  cat_sprite.png
 ```
 
 ## Licence proof
