@@ -1,6 +1,5 @@
 # Class 2 of the statement: Knight.
-# The same class is used by the genetic algorithm (many knights in a population) and by the
-# manual game (a single knight moved by the player, see game.py).
+# One knight = one candidate solution: its chromosome, the path it walks and its fitness.
 
 import random
 
@@ -23,49 +22,45 @@ class Knight:
         self.path.append(self.position)
 
     def move_backward(self, direction):
-        # Cancel the last move (the direction is kept for symmetry with the statement).
+        # Cancel the move `direction` that was just applied: go back and forget the position.
+        dx, dy = MOVES[direction]
+        self.position = (self.position[0] - dx, self.position[1] - dy)
         self.path.pop()
-        self.position = self.path[-1]
-
-    def is_position_valid(self):
-        # Valid = inside the board and not visited before.
-        return on_board(self.position) and self.position not in self.path[:-1]
 
     def check_moves(self):
-        # Replays the whole chromosome from (0, 0). An illegal move is cancelled and replaced by
-        # the next legal move found by cycling forward or backward through the 8 directions.
+        # Replays the whole chromosome from (0, 0). An illegal move (outside the board or on an
+        # already visited square) is cancelled with move_backward and replaced by the next legal
+        # move found by cycling forward or backward through the 8 directions.
         # The cycle direction is drawn once and is the same for the whole chromosome.
         # If no direction is legal, the last tried move is kept.
-        # The genes are corrected with the moves really applied.
+        # The genes are corrected with the moves really applied; returns how many were corrected.
         self.position = (0, 0)
         self.path = [self.position]
+        visited = {self.position}              # set: fast "already visited?" test
         step = random.choice((1, -1))          # +1: cycle forward, -1: cycle backward
         genes = self.chromosome.genes
+        corrected = 0
 
         for i, direction in enumerate(genes):
-            self.move_forward(direction)
-            if self.is_position_valid():
-                continue
-            self.move_backward(direction)
-
-            chosen = direction
-            for k in range(1, NB_MOVES):
+            for k in range(NB_MOVES):          # k = 0: the gene itself, then the cycle
                 chosen = (direction - 1 + step * k) % NB_MOVES + 1
                 self.move_forward(chosen)
-                if self.is_position_valid():
-                    break
-                if k < NB_MOVES - 1:           # the very last tried move is retained
-                    self.move_backward(chosen)
+                if (on_board(self.position) and self.position not in visited) or k == NB_MOVES - 1:
+                    break                      # legal move (or last try, which is retained)
+                self.move_backward(chosen)
+            if chosen != genes[i]:
+                corrected += 1
             genes[i] = chosen
+            visited.add(self.position)
+        return corrected
 
     def evaluate_fitness(self):
         # Walk along the path and count squares until an invalid one (outside the board or
         # already visited). Maximum value: 64.
-        self.fitness = 0
         seen = set()
         for pos in self.path:
             if not on_board(pos) or pos in seen:
                 break
             seen.add(pos)
-            self.fitness += 1
+        self.fitness = len(seen)
         return self.fitness

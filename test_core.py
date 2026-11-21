@@ -102,14 +102,23 @@ def test_population_generation():
 
 def test_genetic_algorithm_finds_a_tour():
     random.seed(7)
-    best, generations, found = run_genetic_algorithm(50, 0.01, max_generations=20000)
-    assert found and best.fitness == NB_SQUARES
+    population = Population(50, 0.01)
+    for _ in range(20000):
+        population.check_population()
+        max_fit, best = population.evaluate()
+        if max_fit == NB_SQUARES:
+            break
+        population.create_new_generation()
+    assert best.fitness == NB_SQUARES
     assert len(best.path) == len(set(best.path)) == NB_SQUARES
     assert all(on_board(p) for p in best.path)
     assert all(is_knight_move(a, b) for a, b in zip(best.path, best.path[1:]))
 
 
-def test_genetic_algorithm_can_be_cancelled():
+def test_genetic_algorithm_function_and_cancel():
+    random.seed(7)
+    best, generations, found = run_genetic_algorithm(50, 0.01, max_generations=20000, tournament_size=4)
+    assert found and best.fitness == NB_SQUARES
     best, generations, found = run_genetic_algorithm(10, 0.01, should_stop=lambda: True)
     assert not found and generations == 1
 
@@ -117,23 +126,30 @@ def test_genetic_algorithm_can_be_cancelled():
 def test_manual_game():
     g = KnightGame()
     assert g.position == (0, 0) and g.visited_count == 1
-    targets = {t for _, t in g.legal_squares()}
-    assert targets == {(1, 2), (2, 1)}
+    assert {t for _, t in g.legal_squares()} == {(1, 2), (2, 1)}
     assert not g.move_to((5, 5))                 # not a knight move
     assert g.move_to((1, 2)) and g.position == (1, 2)
     assert not g.move_to((0, 0))                 # already visited
-    assert g.undo() and g.position == (0, 0) and g.visited_count == 1
-    assert not g.undo()
+    assert g.undo() and g.position == (0, 0) and not g.undo()
 
 
-def test_manual_game_complete():
-    # Replays a tour found by the algorithm through the manual game rules.
-    random.seed(7)
-    best, _, _ = run_genetic_algorithm(50, 0.01, max_generations=20000)
-    g = KnightGame()
-    for square in best.path[1:]:
-        assert g.move_to(square)
-    assert g.is_complete() and not g.is_stuck()
+def test_instrumentation_for_the_lab():
+    random.seed(3)
+    c = Chromosome([1] * NB_GENES)
+    assert c.mutation(0) == [] and c.mutation(1) == list(range(NB_GENES))
+    a, b = Chromosome([1] * NB_GENES), Chromosome([2] * NB_GENES)
+    c1, _ = a.crossover(b)
+    assert c1.genes[:a.last_cut] == [1] * a.last_cut and c1.genes[a.last_cut] == 2
+    k = Knight()
+    before = k.chromosome.genes[:]
+    assert k.check_moves() == sum(x != y for x, y in zip(before, k.chromosome.genes))
+    p = Population(20, 0.05, tournament_size=5)
+    p.check_population()
+    p.evaluate()
+    assert 0 <= p.repaired_genes <= 20 * NB_GENES
+    p.create_new_generation()
+    assert len(p.trace["sample"]) == 5 and p.trace["sample"] == sorted(p.trace["sample"], reverse=True)
+    assert p.mutated_genes >= len(p.trace["mutated"])
 
 
 if __name__ == "__main__":

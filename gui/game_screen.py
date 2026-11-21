@@ -15,6 +15,8 @@ from gui.widgets import Button
 POPULATION_SIZE = 50             # value of the statement's main()
 MUTATION_PROBABILITY = 0.01
 MAX_GENERATIONS = 10000          # safety limit for the interface (the statement loops forever)
+DEFAULT_SETTINGS = {"population": POPULATION_SIZE, "mutation": MUTATION_PROBABILITY,
+                    "tournament": 3, "max_generations": MAX_GENERATIONS}
 SPEEDS = [1, 2, 4, 8]
 MOVE_MS = 450                    # duration of one knight move in the replay at speed 1x
 
@@ -104,7 +106,7 @@ class GameScreen:
         self.game.reset()
         self.anim = None
         self.last_run = None
-        self.job = GAJob(POPULATION_SIZE, MUTATION_PROBABILITY, MAX_GENERATIONS)
+        self.job = GAJob(*self.app.job_settings())
         self.job.start()
         self.message = "Solving..."
 

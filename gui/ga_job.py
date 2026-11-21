@@ -7,11 +7,12 @@ from genetic_algorithm import run_genetic_algorithm
 
 
 class GAJob(threading.Thread):
-    def __init__(self, population_size, mutation_probability, max_generations):
+    def __init__(self, population_size, mutation_probability, max_generations, tournament_size=3):
         super().__init__(daemon=True)
         self.population_size = population_size
         self.mutation_probability = mutation_probability
         self.max_generations = max_generations
+        self.tournament_size = tournament_size
         self.stop_event = threading.Event()
         self.done = False
         self.result = None             # (valid path, generations, found)
@@ -30,7 +31,8 @@ class GAJob(threading.Thread):
         start = time.perf_counter()
         best, generations, found = run_genetic_algorithm(
             self.population_size, self.mutation_probability, self.max_generations,
-            on_generation=self._on_generation, should_stop=self.stop_event.is_set)
+            on_generation=self._on_generation, should_stop=self.stop_event.is_set,
+            tournament_size=self.tournament_size)
         self.duration = time.perf_counter() - start
         self.result = (best.path[:best.fitness], generations, found)
         self.done = True

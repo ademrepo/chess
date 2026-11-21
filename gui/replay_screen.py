@@ -11,7 +11,6 @@ import pygame
 
 from board import BOARD_SIZE, NB_SQUARES
 from gui.ga_job import GAJob
-from gui.game_screen import MAX_GENERATIONS, MUTATION_PROBABILITY, POPULATION_SIZE
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 IMAGE_UI = os.path.join(ROOT, "assets", "ui.png")
@@ -156,7 +155,7 @@ class ReplayScreen:
         if self.job is not None:
             self.job.cancel()
         self.playing = False
-        self.job = GAJob(POPULATION_SIZE, MUTATION_PROBABILITY, MAX_GENERATIONS)
+        self.job = GAJob(*self.app.job_settings())
         self.job.start()
 
     def finish_run(self):
@@ -316,8 +315,10 @@ class ReplayScreen:
         y += LINE_HEIGHT + SECTION_GAP
 
         y = self._ribbon(surface, "Parameters", (middle, y))
-        write(surface, "Population: %d" % POPULATION_SIZE, img["font"], CREAM, midtop=(middle, y))
-        write(surface, "Mutation probability: %s" % MUTATION_PROBABILITY, img["font"], CREAM,
+        settings = self.app.settings
+        write(surface, "Population: %d   Tournament: %d" % (settings["population"], settings["tournament"]),
+              img["font"], CREAM, midtop=(middle, y))
+        write(surface, "Mutation probability: %s" % settings["mutation"], img["font"], CREAM,
               midtop=(middle, y + LINE_HEIGHT))
         y += 2 * LINE_HEIGHT + SECTION_GAP
 

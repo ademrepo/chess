@@ -6,13 +6,13 @@ from population import Population
 
 
 def run_genetic_algorithm(population_size=50, mutation_probability=0.01, max_generations=None,
-                          on_generation=None, should_stop=None):
+                          on_generation=None, should_stop=None, tournament_size=3):
     # Returns (best knight found, number of generations, True if a full tour was found).
     # on_generation(generation, best_of_generation, average_fitness) is called after each
     # evaluation (used to draw the progress). should_stop() lets the interface cancel the run.
 
     # Create the initial population
-    population = Population(population_size, mutation_probability)
+    population = Population(population_size, mutation_probability, tournament_size)
     best_so_far = None
 
     while True:
