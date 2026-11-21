@@ -9,11 +9,13 @@ class HomeScreen:
     def __init__(self, app):
         self.app = app
         cx = theme.WIDTH // 2
-        self.play_button = Button((cx - 170, 420, 340, 68), "Play", lambda: app.goto("game"),
+        self.play_button = Button((cx - 170, 400, 340, 68), "Play", lambda: app.goto("game"),
                                   theme.BTN_PRIMARY, 30)
-        self.quit_button = Button((cx - 170, 510, 340, 52), "Quit", app.quit,
+        self.watch_button = Button((cx - 170, 482, 340, 56), "Watch the algorithm",
+                                   lambda: app.goto("replay"), theme.BTN_SECONDARY, 22)
+        self.quit_button = Button((cx - 170, 552, 340, 52), "Quit", app.quit,
                                   theme.BTN_SECONDARY, 22)
-        self.buttons = [self.play_button, self.quit_button]
+        self.buttons = [self.play_button, self.watch_button, self.quit_button]
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:

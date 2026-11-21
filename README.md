@@ -7,9 +7,10 @@ knight, or press **Solve with Genetic Algorithm** and watch the algorithm of Cha
 
 ```
 pip install -r requirements.txt     # pygame-ce (once)
-python main.py                      # home screen -> "Play"
+python main.py                      # home screen -> "Play" or "Watch the algorithm"
 python main.py --console --seed 1   # only the algorithm, in the terminal
 python test_core.py                 # tests of the core
+python benchmark.py 50              # statistics over 50 runs
 ```
 
 Python 3 required (tested with 3.14).
@@ -38,18 +39,25 @@ knight.py             class Knight       (move_forward, move_backward, check_mov
 population.py         class Population   (tournament selection, new generation)
 genetic_algorithm.py  the loop of the statement's main()
 game.py               manual game with one knight
-gui/                  pygame interface
+gui/                  pygame interface (home, manual game, replay with the cat, GA thread)
+assets/               sprite sheets of the replay screen (cat, wooden UI)
+benchmark.py          generations / time over many runs
 test_core.py          tests
 specs/                statement, Chapter 2, assets and their sources
-docs/                 PLAN.md, EXPLICATION.md, logs/
-CLAUDE.md             working rules
+docs/                 EXPLICATION.md (notes for the oral)
 ```
 
 ## Where things come from
 
 - Algorithm: the statement `specs/Project 2.pdf` and Chapter 2 `specs/Chapter 2.pdf`
   (summary in `specs/SPEC.md`).
+- Cat and wooden interface of the replay screen: `assets/` (source and licence in `specs/ASSETS.md`).
 - Chess pieces: **cburnett** set by Colin M.L. Burnett, GPLv2+, taken from the Lichess repository.
   Full sources, licence and file hashes: **`specs/ASSETS.md`**. Nothing comes from chess.com; the
   green look is only imitated with colours and shapes drawn by the code.
-- Explanations for the oral: `docs/EXPLICATION.md`. History of the work: `docs/logs/`.
+- Explanations for the oral: `docs/EXPLICATION.md`.
+
+## Replay screen
+
+`Space` play / pause, `R` new run (history of the runs is kept), `Esc` menu; the gear button changes
+the speed. The calculation runs in a background thread and shows the generation counter.

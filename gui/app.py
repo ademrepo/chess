@@ -1,4 +1,4 @@
-# Window and main loop: switches between the home screen and the game screen.
+# Window and main loop: switches between the home, game and replay screens.
 
 import pygame
 
@@ -6,25 +6,32 @@ from gui import theme
 from gui.assets_loader import knight_image
 from gui.game_screen import GameScreen
 from gui.home_screen import HomeScreen
+from gui.replay_screen import ReplayScreen
+
+SCREENS = {"home": HomeScreen, "game": GameScreen, "replay": ReplayScreen}
 
 
 class App:
     def __init__(self):
         pygame.init()
-        self.surface = pygame.display.set_mode((theme.WIDTH, theme.HEIGHT))
-        pygame.display.set_caption("Knight's Tour - Genetic Algorithm")
-        pygame.display.set_icon(knight_image("w", 64))
-        self.clock = pygame.time.Clock()
+        self.history = []                 # (generations, seconds) of every run watched
         self.running = True
-        self.screen = HomeScreen(self)
+        self.goto("home")
+        pygame.display.set_icon(knight_image("w", 64))
 
     def goto(self, name):
-        self.screen = HomeScreen(self) if name == "home" else GameScreen(self)
+        screen_class = SCREENS[name]
+        # Each screen has its own window size; the screen is built after the window exists
+        # because it loads images that need a display.
+        self.surface = pygame.display.set_mode(getattr(screen_class, "SIZE", (theme.WIDTH, theme.HEIGHT)))
+        pygame.display.set_caption("Knight's Tour - Genetic Algorithm")
+        self.screen = screen_class(self)
 
     def quit(self):
         self.running = False
 
     def run(self):
+        clock = pygame.time.Clock()
         while self.running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -34,5 +41,5 @@ class App:
             self.screen.update()
             self.screen.draw(self.surface)
             pygame.display.flip()
-            self.clock.tick(60)
+            clock.tick(60)
         pygame.quit()
