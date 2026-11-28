@@ -67,12 +67,13 @@ class SettingsScreen:
         surface.fill(theme.BG)
         mouse = pygame.mouse.get_pos()
         cx = theme.WIDTH // 2
+        theme.draw_side_panel(surface, (cx - 430, 14, 860, 700))
         theme.draw_text(surface, "Settings", 44, theme.TEXT, (cx, 40), bold=True, anchor="midtop")
         theme.draw_text(surface, "Parameters of the genetic algorithm", 18, theme.MUTED,
                         (cx, 94), anchor="midtop")
         for row, (key, title, _values, fmt, help_text) in enumerate(PARAMETERS):
             y = ROW_Y + row * ROW_H
-            pygame.draw.rect(surface, theme.CARD, (cx - 400, y - 8, 800, ROW_H - 12), border_radius=8)
+            theme.draw_card(surface, (cx - 400, y - 8, 800, ROW_H - 12))
             theme.draw_text(surface, title, 24, theme.TEXT, (cx - 380, y + 6), bold=True)
             theme.draw_text(surface, fmt % self.app.settings[key], 30, theme.GOLD,
                             (cx + 233, y + 27), bold=True, anchor="center")

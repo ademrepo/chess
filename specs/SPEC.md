@@ -116,6 +116,12 @@ These do not change section 1; they extend the "interface" part of the statement
    chess.com file**. Every asset is listed with its source and licence in `specs/ASSETS.md`.
 6. Project documentation in the style of the Sokoban project: `docs/EXPLICATION.md`, assets in `specs/`.
 
+7. (Project 3) The interface also runs the CSP backtracking of `csp/` (statement `Project 3.pdf`,
+   objective 1): a button "Solve with CSP (Backtracking)" in the game, a step-by-step screen with the
+   dead ends, and a cat replay. See `csp/README.md`.
+8. Two styles chosen at the start: "Chess Classic" (item 5) and "Cavalier Jack" (wooden look, a cat
+   as the piece), same features in both.
+
 Parameters not fixed by the statement (our choices, see `docs/EXPLICATION.md`):
 mutation probability 0.01; safety limit of 10 000 generations in the interface only (the statement's
 loop has none); a gene corrected by `check_moves` is written back into the chromosome.

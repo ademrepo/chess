@@ -4,3 +4,7 @@ __pycache__/
 venv/
 .vscode/
 dist/
+
+# Enonces / PDF de cours (non versionnes)
+Project 3.pdf
+csp/*.pdf

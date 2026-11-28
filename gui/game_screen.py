@@ -1,5 +1,5 @@
 # Game screen: the board, ONE knight played by the human, and a side panel with the button
-# that lets the genetic algorithm solve the tour.
+# that lets the genetic algorithm or the CSP backtracking solve the tour.
 
 from collections import deque
 
@@ -7,8 +7,8 @@ import pygame
 
 from board import NB_SQUARES, square_name
 from game import KnightGame
-from gui import theme
-from gui.assets_loader import knight_image
+from gui import cat, theme
+from gui.csp_job import CSPJob
 from gui.ga_job import GAJob
 from gui.widgets import Button
 
@@ -19,6 +19,8 @@ DEFAULT_SETTINGS = {"population": POPULATION_SIZE, "mutation": MUTATION_PROBABIL
                     "tournament": 3, "max_generations": MAX_GENERATIONS}
 SPEEDS = [1, 2, 4, 8]
 MOVE_MS = 450                    # duration of one knight move in the replay at speed 1x
+CAT_MOVE_MS = 800                # same for the cat: slower, so its profile can be seen
+CAT_MANUAL_MS = 380              # a move played by hand, with the cat
 
 
 def square_center(pos):
@@ -34,7 +36,9 @@ class GameScreen:
         self.queue = deque()             # squares still to replay after the GA finished
         self.anim = None                 # (from, to, start_ms, duration_ms)
         self.anim_is_replay = False
-        self.last_run = None             # (found, generations, fitness)
+        self.last_run = None             # (found, generations or moves tried, fitness)
+        self.last_algo = "ga"            # "ga" or "csp": who produced last_run
+        self.cat_facing = None           # direction of the last move (the cat keeps looking that way)
         self.speed_i = 0
         self.show_path = True
         self.message = ""
@@ -45,14 +49,16 @@ class GameScreen:
         half = (w - 10) // 2
         self.undo_btn = Button((x, 222, half, 44), "Undo", self.undo)
         self.reset_btn = Button((x + half + 10, 222, half, 44), "New game", self.reset)
-        self.ga_btn = Button((x, 284, w, 56), "Solve with Genetic Algorithm", self.toggle_ga,
+        self.ga_btn = Button((x, 284, w, 50), "Solve with Genetic Algorithm", self.toggle_ga,
                              theme.BTN_PRIMARY, 19)
-        self.speed_btn = Button((x + w - 120, 360, 120, 34), "1x", self.cycle_speed, size=16)
-        self.path_btn = Button((x, 420, half, 40), "Path: on", self.toggle_path, size=16)
-        self.menu_btn = Button((x + half + 10, 420, half, 40), "Menu", self.go_menu, size=16)
+        self.csp_btn = Button((x, 346, w, 50), "Solve with CSP (Backtracking)", self.toggle_csp,
+                              theme.BTN_PRIMARY, 19)
+        self.speed_btn = Button((x + w - 120, 420, 120, 34), "1x", self.cycle_speed, size=16)
+        self.path_btn = Button((x, 478, half, 40), "Path: on", self.toggle_path, size=16)
+        self.menu_btn = Button((x + half + 10, 478, half, 40), "Menu", self.go_menu, size=16)
         self.ov_buttons = [Button((0, 0, 170, 46), "", lambda: None, theme.BTN_PRIMARY),
                            Button((0, 0, 170, 46), "", lambda: None)]
-        self.buttons = [self.undo_btn, self.reset_btn, self.ga_btn, self.speed_btn,
+        self.buttons = [self.undo_btn, self.reset_btn, self.ga_btn, self.csp_btn, self.speed_btn,
                         self.path_btn, self.menu_btn]
 
     # ------------------------------------------------------------------ state
@@ -79,7 +85,10 @@ class GameScreen:
 
     # ------------------------------------------------------------------ actions
     def start_anim(self, source, target, replay=False):
-        duration = MOVE_MS / SPEEDS[self.speed_i] if replay else 140
+        if theme.is_jack():
+            duration = CAT_MOVE_MS / SPEEDS[self.speed_i] if replay else CAT_MANUAL_MS
+        else:
+            duration = MOVE_MS / SPEEDS[self.speed_i] if replay else 140
         self.anim = (source, target, pygame.time.get_ticks(), duration)
         self.anim_is_replay = replay
 
@@ -94,6 +103,8 @@ class GameScreen:
         self.queue.clear()
         self.anim = None
         self.game.reset()
+        self.cat_facing = None
+        cat.look(None)                   # the cat looks at us again
         self.last_run = None
         self.message = ""
 
@@ -106,9 +117,25 @@ class GameScreen:
         self.game.reset()
         self.anim = None
         self.last_run = None
+        self.last_algo = "ga"
         self.job = GAJob(*self.app.job_settings())
         self.job.start()
         self.message = "Solving..."
+
+    def toggle_csp(self):
+        # Same as toggle_ga, but the path comes from the CSP backtracking (project 3).
+        if self.running:
+            self.job.cancel()
+            return
+        if self.busy:
+            return
+        self.game.reset()
+        self.anim = None
+        self.last_run = None
+        self.last_algo = "csp"
+        self.job = CSPJob()
+        self.job.start()
+        self.message = "Backtracking..."
 
     def cycle_speed(self):
         self.speed_i = (self.speed_i + 1) % len(SPEEDS)
@@ -179,10 +206,19 @@ class GameScreen:
                 self.queue.clear()
 
         busy = self.busy
+        ga_running = self.running and self.last_algo == "ga"
+        csp_running = self.running and self.last_algo == "csp"
+        ga_active = busy and self.last_algo == "ga"       # calculating or replaying its tour
+        csp_active = busy and self.last_algo == "csp"
         self.undo_btn.enabled = not busy and self.game.visited_count > 1
-        self.ga_btn.label = "Cancel" if self.running else "Solve with Genetic Algorithm"
-        self.ga_btn.style = theme.BTN_DANGER if self.running else theme.BTN_PRIMARY
-        self.ga_btn.enabled = not self.replaying
+        self.ga_btn.label = "Cancel" if ga_running else "Solve with Genetic Algorithm"
+        self.ga_btn.style = theme.BTN_DANGER if ga_running else theme.BTN_PRIMARY
+        self.ga_btn.selected = ga_active                  # the running one stays lit, with a border
+        self.ga_btn.enabled = not csp_active              # the other one is greyed out
+        self.csp_btn.label = "Cancel" if csp_running else "Solve with CSP (Backtracking)"
+        self.csp_btn.style = theme.BTN_DANGER if csp_running else theme.BTN_PRIMARY
+        self.csp_btn.selected = csp_active
+        self.csp_btn.enabled = not ga_active
         self.speed_btn.label = "%dx" % SPEEDS[self.speed_i]
         self.path_btn.label = "Path: on" if self.show_path else "Path: off"
 
@@ -204,16 +240,14 @@ class GameScreen:
         if not self.busy and self.anim is None and not kind:
             legal = {target for _, target in self.game.legal_squares()}
 
+        theme.draw_board_frame(surface, pygame.Rect(theme.BOARD_X, theme.BOARD_Y,
+                                                    theme.BOARD_PIXELS, theme.BOARD_PIXELS), 16)
         for y in range(8):
             for x in range(8):
                 dark = (x + y) % 2 == 1
-                if (x, y) in visited:
-                    color = theme.VISITED_DARK if dark else theme.VISITED_LIGHT
-                else:
-                    color = theme.DARK if dark else theme.LIGHT
                 rect = pygame.Rect(theme.BOARD_X + x * sq, theme.BOARD_Y + y * sq, sq, sq)
-                pygame.draw.rect(surface, color, rect)
-                label_color = theme.LIGHT if dark and (x, y) not in visited else (96, 120, 60)
+                theme.draw_square(surface, rect, dark, (x, y) in visited)
+                label_color = theme.COORD_DARK if dark and (x, y) not in visited else theme.COORD_LIGHT
                 if x == 0:                                   # ranks 8..1, top-left corner
                     theme.draw_text(surface, str(8 - y), 14, label_color,
                                     (rect.x + 4, rect.y + 3), bold=True)
@@ -229,11 +263,11 @@ class GameScreen:
 
         for index, pos in enumerate(path):
             if pos != path[-1]:
-                theme.draw_text(surface, str(index + 1), 16, (96, 120, 60),
+                theme.draw_text(surface, str(index + 1), 16, theme.NUMBER,
                                 square_center(pos), bold=True, anchor="center")
 
         dots = pygame.Surface((sq, sq), pygame.SRCALPHA)
-        pygame.draw.circle(dots, (0, 0, 0, 55), (sq // 2, sq // 2), 12)
+        pygame.draw.circle(dots, theme.DOT, (sq // 2, sq // 2), 12)
         for target in legal:
             surface.blit(dots, (theme.BOARD_X + target[0] * sq, theme.BOARD_Y + target[1] * sq))
         if hover in legal:
@@ -241,23 +275,26 @@ class GameScreen:
                              (theme.BOARD_X + hover[0] * sq, theme.BOARD_Y + hover[1] * sq, sq, sq),
                              4)
 
+        facing, phase = self.cat_facing, None     # at rest the cat keeps the way it looked
         if self.anim:
             source, target, start, duration = self.anim
             t = min(1.0, (pygame.time.get_ticks() - start) / duration)
-            t = 1 - (1 - t) ** 3
+            t = t * t * (3 - 2 * t) if theme.is_jack() else 1 - (1 - t) ** 3     # the cat leaves and lands gently
             sx, sy = square_center(source)
             tx, ty = square_center(target)
             centre = (sx + (tx - sx) * t, sy + (ty - sy) * t)
+            facing, phase = (tx - sx, ty - sy), t
+            self.cat_facing = facing
         else:
             centre = square_center(path[-1])
-        image = knight_image("w", sq)
-        surface.blit(image, image.get_rect(center=centre))
+        theme.draw_piece(surface, centre, sq, facing, phase)
 
     def _draw_panel(self, surface, path, mouse):
         x, w = theme.PANEL_X, theme.PANEL_W
-        theme.draw_text(surface, "Knight's Tour", 28, theme.TEXT, (x, 40), bold=True)
+        theme.draw_side_panel(surface, (x - 16, 16, w + 32, 698))
+        theme.draw_text(surface, "Knight's Tour", 28, theme.TEXT, (x, 54), bold=True)
 
-        pygame.draw.rect(surface, theme.CARD, (x, 110, w, 96), border_radius=8)
+        theme.draw_card(surface, (x, 110, w, 96))
         theme.draw_text(surface, "Squares visited", 15, theme.MUTED, (x + 16, 120))
         theme.draw_text(surface, "%d / %d" % (len(path), NB_SQUARES), 34, theme.TEXT,
                         (x + 16, 138), bold=True)
@@ -266,7 +303,7 @@ class GameScreen:
         if self.message:
             theme.draw_text(surface, self.message, 14, theme.MUTED, (x + 16, 182))
 
-        theme.draw_text(surface, "Replay speed", 16, theme.MUTED, (x, 367))
+        theme.draw_text(surface, "Replay speed", 16, theme.MUTED, (x, 427))
         for button in self.buttons:
             button.draw(surface, mouse)
 
@@ -278,12 +315,15 @@ class GameScreen:
 
         card = pygame.Rect(0, 0, 420, 210)
         card.center = board.center
-        pygame.draw.rect(surface, theme.PANEL, card, border_radius=12)
+        theme.draw_dialog(surface, card)
         if kind == "complete":
             title = "Tour complete!"
             sub = "64 / 64 squares"
             if self.last_run and self.last_run[0]:
-                sub = "Found in %d generations" % self.last_run[1]
+                if self.last_algo == "csp":
+                    sub = "Found by backtracking (%d moves tried)" % self.last_run[1]
+                else:
+                    sub = "Found in %d generations" % self.last_run[1]
             first = ("New game", self.reset)
             second = ("Menu", self.go_menu)
         else:

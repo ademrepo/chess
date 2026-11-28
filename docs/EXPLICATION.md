@@ -31,12 +31,14 @@ candidates qui évolue par sélection, croisement et mutation.
 - `main.py` : point d'entrée (console ou interface).
 - `game.py` : jeu manuel, réutilise `Knight`.
 - `gui/` : écrans pygame. `settings_screen.py` (paramètres), `lab_screen.py` (laboratoire pas à pas),
-  `game_screen.py`, `replay_screen.py` (chat), `home_screen.py`.
+  `game_screen.py`, `replay_screen.py` (chat), `home_screen.py`, `style_screen.py` (choix du style au
+  démarrage), `csp_screen.py` et `csp_job.py` (projet 3, voir `csp/README.md`), `theme.py`, `wood.py`, `cat.py`
+  (les deux styles : Chess Classic et Cavalier Jack).
 - `test_core.py` : 12 tests, sans pygame.
 
 ## 3 bis. Le laboratoire (à montrer à la prof)
 
-Menu → *Algorithm lab*. Il utilise les **vraies** classes ; un clic sur *Step* = une génération.
+Menu (colonne « Project 2 ») → *Algorithm lab*. Il utilise les **vraies** classes ; un clic sur *Step* = une génération.
 Panneau de droite, de haut en bas :
 1. **Statistiques** : génération, meilleure fitness, moyenne, pire, meilleure de tous les temps.
 2. **Courbes** de fitness (meilleure en vert, moyenne en jaune) : on voit la population progresser.

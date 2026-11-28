@@ -1,168 +1,73 @@
-# Replay screen: a cat jumps along the tour found by the genetic algorithm, with a result panel
-# and the history of the runs. The animation, the sprite sheets and the layout come from the
-# `adem` branch; the calculation runs in a GAJob thread (from the `nesrine` branch) so the
-# window never freezes and the run can be cancelled.
-# The sprite sheets were cut with the pixel rectangles measured below (x, y, width, height).
-
-import math
-import os
+# Replay screen ("Watch ... (cat)"): the algorithm (genetic algorithm or CSP backtracking) runs
+# in a job thread, then the piece replays the tour it found. Same board, same side panel and
+# same buttons as the other screens; the cards say what the algorithm did and how to read it.
 
 import pygame
 
-from board import BOARD_SIZE, NB_SQUARES
+from board import NB_SQUARES
+from gui import theme
+from gui.csp_job import CSPJob
 from gui.ga_job import GAJob
-
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-IMAGE_UI = os.path.join(ROOT, "assets", "ui.png")
-IMAGE_CAT = os.path.join(ROOT, "assets", "cat_sprite.png")
+from gui.widgets import Button
 
 # --- Animation settings ---
-JUMP_SECONDS = 0.5                 # duration of one jump at speed x1
+JUMP_SECONDS = 0.85                # duration of one jump at speed x1
 SPEEDS = (0.5, 1, 2, 4)
 START_SPEED = 1                    # index in SPEEDS
-JUMP_HEIGHT = 46                   # height of the jump arc, in pixels
-IDLE_FRAME_MS = 180                # milliseconds per idle frame of the cat
-FPS = 60
-RUNS_SHOWN = 4
+RUNS_SHOWN = 8
 
-# --- Window and layout ---
-SIZE = (1220, 740)
-BOARD_POS = (20, 50)
-SQUARE = 64
-COLUMN_X, COLUMN_W = 660, 540
-TITLE_PLATE = pygame.Rect(COLUMN_X, 20, COLUMN_W, 80)
-PANEL = pygame.Rect(COLUMN_X, 110, COLUMN_W, 540)
-RIBBON_SIZE = (260, 62)
-BAR_SIZE = (480, 101)
-BUTTON_SIZE = (68, 68)
-BACK_BUTTON_SIZE = (96, 68)
-BUTTONS_Y = 664
-BUTTONS_GAP = 24
-PLAY_RECT = pygame.Rect((COLUMN_X, BUTTONS_Y), BUTTON_SIZE)
-AGAIN_RECT = pygame.Rect((PLAY_RECT.right + BUTTONS_GAP, BUTTONS_Y), BACK_BUTTON_SIZE)
-SPEED_RECT = pygame.Rect((AGAIN_RECT.right + BUTTONS_GAP, BUTTONS_Y), BUTTON_SIZE)
-PANEL_TOP_MARGIN = 22
-LINE_HEIGHT = 26
-SECTION_GAP = 8
-COORD_RADIUS = 11
-COORD_OFFSET = 26                  # distance between the grid and the 1..8 labels
-
-# --- Rectangles measured on the images of assets/ ---
-BOARD_RECT = (45, 42, 643, 690)
-GRID_ORIGIN = (99, 100)            # top-left corner of the first square, in ui.png
-GRID_SIZE = (535, 565)             # the 8 squares, not square (about 66.9 x 70.6)
-DARK_FRAME_RECT = (710, 47, 321, 324)
-PLATE_RECT = (1055, 50, 277, 141)
-PLAY_IMG, PAUSE_IMG = (1054, 198, 80, 80), (1141, 290, 78, 82)
-GEAR_IMG, BACK_IMG = (1141, 198, 78, 80), (1227, 296, 106, 76)
-RIBBON_IMG = (1051, 394, 276, 73)
-BAR_IMG = (727, 603, 610, 129)
-BAR_COMPARTMENTS = ((0.03, 0.26), (0.28, 0.72), (0.74, 0.97))   # fractions of the bar width
-BAR_CENTER_Y = 0.40
-CAT_FRAMES = {                     # 4 idle frames per row
-    "front": [(84, 50, 208, 213), (417, 51, 207, 212), (755, 51, 204, 213), (1083, 51, 205, 213)],
-    "side": [(88, 294, 242, 216), (419, 296, 244, 214), (766, 295, 242, 216), (1086, 295, 241, 214)],
-    "back": [(113, 534, 201, 214), (427, 538, 213, 210), (758, 534, 233, 214), (1101, 533, 217, 215)],
-}
-CAT_SCALE = 0.32
-SHADOW_SIZE = (40, 12)
-SHADOW_ALPHA = 90
-
-# --- Colours ---
-CREAM = (245, 230, 190)
-DARK_BROWN = (74, 44, 26)
-GOLD = (255, 205, 80)
-TINT = (230, 150, 60)
-TINT_ALPHA = 120
-LABEL_BG = (38, 22, 14)
-WHITE_CREAM = (255, 248, 225)
 START_BLUE = (70, 140, 255)
 CURRENT_YELLOW = (255, 215, 40)
-BACKGROUND = (28, 18, 14)
-
-# Stretch factors that make the squares of the board image square (64 x 64)
-SCALE_X = SQUARE / (GRID_SIZE[0] / BOARD_SIZE)
-SCALE_Y = SQUARE / (GRID_SIZE[1] / BOARD_SIZE)
-SCREEN_ORIGIN = (
-    BOARD_POS[0] + round((GRID_ORIGIN[0] - BOARD_RECT[0]) * SCALE_X),
-    BOARD_POS[1] + round((GRID_ORIGIN[1] - BOARD_RECT[1]) * SCALE_Y),
-)
 
 
-def cut(sheet, rect, size=None):
-    # Extracts a piece of the sheet, optionally resized (smooth).
-    piece = sheet.subsurface(rect).copy()
-    return pygame.transform.smoothscale(piece, size) if size else piece
+def center(square):
+    return (theme.BOARD_X + square[0] * theme.SQUARE + theme.SQUARE // 2,
+            theme.BOARD_Y + square[1] * theme.SQUARE + theme.SQUARE // 2)
 
 
-def square_rect(square):
-    x, y = square
-    return pygame.Rect(SCREEN_ORIGIN[0] + x * SQUARE, SCREEN_ORIGIN[1] + y * SQUARE, SQUARE, SQUARE)
-
-
-def write(surface, text, font, color, **anchor):
-    # anchor is center=(x, y), topleft=(x, y), midright=(x, y)...
-    image = font.render(text, True, color)
-    surface.blit(image, image.get_rect(**anchor))
+def cell(square):
+    return pygame.Rect(theme.BOARD_X + square[0] * theme.SQUARE, theme.BOARD_Y + square[1] * theme.SQUARE,
+                       theme.SQUARE, theme.SQUARE)
 
 
 class ReplayScreen:
-    SIZE = SIZE
-
     def __init__(self, app):
         self.app = app
-        self.img = self._load_images()
+        self.is_csp = app.replay_algo == "csp"          # CSP backtracking or genetic algorithm
+        self.history = app.history_csp if self.is_csp else app.history
         self.speed_i = START_SPEED
         self.job = None
         self.path = []
-        self.stats = None              # (generations, seconds, fitness, average fitness, found)
+        self.stats = None              # (generations or moves tried, seconds, squares, average fitness, found)
         self.progress = 0.0            # number of jumps already done (fractional)
         self.playing = False
+        self.last_tick = pygame.time.get_ticks()
+        self._build_buttons()
         self.start_run()
 
-    # ------------------------------------------------------------------ resources
-    def _load_images(self):
-        ui = pygame.image.load(IMAGE_UI).convert_alpha()
-        cat_sheet = pygame.image.load(IMAGE_CAT).convert_alpha()
-        board_size = (round(BOARD_RECT[2] * SCALE_X), round(BOARD_RECT[3] * SCALE_Y))
-        cats = {}
-        for row, rects in CAT_FRAMES.items():
-            cats[row] = [cut(cat_sheet, r, (round(r[2] * CAT_SCALE), round(r[3] * CAT_SCALE)))
-                         for r in rects]
-        number_font = pygame.font.Font(None, 30)
-        return {
-            "board": cut(ui, BOARD_RECT, board_size),
-            "panel": cut(ui, DARK_FRAME_RECT, PANEL.size),
-            "plate": cut(ui, PLATE_RECT, TITLE_PLATE.size),
-            "ribbon": cut(ui, RIBBON_IMG, RIBBON_SIZE),
-            "bar": cut(ui, BAR_IMG, BAR_SIZE),
-            "play": cut(ui, PLAY_IMG, BUTTON_SIZE),
-            "pause": cut(ui, PAUSE_IMG, BUTTON_SIZE),
-            "gear": cut(ui, GEAR_IMG, BUTTON_SIZE),
-            "back": cut(ui, BACK_IMG, BACK_BUTTON_SIZE),
-            "cats": cats,
-            "numbers_cream": {n: number_font.render(str(n), True, CREAM) for n in range(1, NB_SQUARES + 1)},
-            "numbers_brown": {n: number_font.render(str(n), True, DARK_BROWN) for n in range(1, NB_SQUARES + 1)},
-            "font_title": pygame.font.Font(None, 54),
-            "font_ribbon": pygame.font.Font(None, 30),
-            "font": pygame.font.Font(None, 26),
-            "font_small": pygame.font.Font(None, 20),
-            "font_big": pygame.font.Font(None, 36),
-        }
+    def _build_buttons(self):
+        x, w = theme.PANEL_X, theme.PANEL_W
+        half = (w - 10) // 2
+        self.play_btn = Button((x, 534, w, 44), "Play", self.toggle_play, theme.BTN_PRIMARY, 19)
+        self.speed_btn = Button((x, 588, half, 38), "", self.cycle_speed, size=16)
+        self.again_btn = Button((x + half + 10, 588, half, 38), "New run (R)", self.start_run, size=16)
+        self.menu_btn = Button((x, 636, w, 38), "Menu (Esc)", self.go_menu, size=16)
+        self.buttons = [self.play_btn, self.speed_btn, self.again_btn, self.menu_btn]
 
     # ------------------------------------------------------------------ run management
     def start_run(self):
         if self.job is not None:
             self.job.cancel()
         self.playing = False
-        self.job = GAJob(*self.app.job_settings())
+        self.path, self.stats, self.progress = [], None, 0.0
+        self.job = CSPJob() if self.is_csp else GAJob(*self.app.job_settings())
         self.job.start()
 
     def finish_run(self):
-        path, generations, found = self.job.result
+        path, count, found = self.job.result
         self.path = path
-        self.stats = (generations, self.job.duration, len(path), self.job.average_fitness, found)
-        self.app.history.append((generations, self.job.duration))
+        self.stats = (count, self.job.duration, len(path), self.job.average_fitness, found)
+        self.history.append((count, self.job.duration))
         self.job = None
         self.progress = 0.0
         self.playing = len(path) > 1
@@ -176,6 +81,9 @@ class ReplayScreen:
         self.playing = not self.playing
         if self.playing and self.progress >= self.jumps():
             self.progress = 0.0        # replay from the start
+
+    def cycle_speed(self):
+        self.speed_i = (self.speed_i + 1) % len(SPEEDS)
 
     def go_menu(self):
         if self.job is not None:
@@ -191,154 +99,122 @@ class ReplayScreen:
                 self.toggle_play()
             elif event.key == pygame.K_r:
                 self.start_run()
-        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            if PLAY_RECT.collidepoint(event.pos):
-                self.toggle_play()
-            elif AGAIN_RECT.collidepoint(event.pos):
-                self.start_run()
-            elif SPEED_RECT.collidepoint(event.pos):
-                self.speed_i = (self.speed_i + 1) % len(SPEEDS)
+            elif event.key == pygame.K_UP:
+                self.speed_i = min(self.speed_i + 1, len(SPEEDS) - 1)
+            elif event.key == pygame.K_DOWN:
+                self.speed_i = max(self.speed_i - 1, 0)
+            return
+        for button in self.buttons:
+            if button.handle_event(event):
+                return
 
     def update(self):
-        dt = self.app_dt()
+        now = pygame.time.get_ticks()
+        dt = min((now - self.last_tick) / 1000, 0.1)
+        self.last_tick = now
         if self.job is not None and self.job.done:
             self.finish_run()
         if self.job is None and self.playing:
             self.progress = min(self.progress + dt * SPEEDS[self.speed_i] / JUMP_SECONDS, self.jumps())
-            self.playing = self.progress < self.jumps()      # finished: the icon becomes "play"
-
-    def app_dt(self):
-        # Seconds since the previous update (the main loop runs at FPS).
-        now = pygame.time.get_ticks()
-        last = getattr(self, "_last_tick", now)
-        self._last_tick = now
-        return min((now - last) / 1000, 0.1)
+            self.playing = self.progress < self.jumps()      # finished: the button becomes "Replay"
+        ready = self.job is None and self.jumps() > 0
+        finished = ready and self.progress >= self.jumps()
+        self.play_btn.label = "Pause (Space)" if self.playing else ("Replay (Space)" if finished else "Play (Space)")
+        self.play_btn.enabled = ready
+        self.speed_btn.label = "Speed: x%s" % SPEEDS[self.speed_i]
 
     # ------------------------------------------------------------------ drawing
     def draw(self, surface):
-        surface.fill(BACKGROUND)
-        if self.job is not None:
-            text = "Computing... generation %d   (Esc: menu)" % self.job.generation
-            write(surface, text, self.img["font_big"], CREAM, center=surface.get_rect().center)
-            return
+        surface.fill(theme.BG)
+        mouse = pygame.mouse.get_pos()
         self._draw_board(surface)
-        surface.blit(self.img["plate"], TITLE_PLATE)
-        write(surface, "Knight's Tour", self.img["font_title"], DARK_BROWN, center=TITLE_PLATE.center)
-        self._draw_panel(surface)
-        self._draw_buttons(surface)
+        self._draw_panel(surface, mouse)
 
     def _draw_board(self, surface):
-        img = self.img
-        surface.blit(img["board"], BOARD_POS)
-        for i in range(BOARD_SIZE):          # labels 1..8 on the top and left margins
-            x, y = square_rect((i, i)).center
-            for centre in ((x, SCREEN_ORIGIN[1] - COORD_OFFSET), (SCREEN_ORIGIN[0] - COORD_OFFSET, y)):
-                pygame.draw.circle(surface, LABEL_BG, centre, COORD_RADIUS)
-                write(surface, str(i + 1), img["font_small"], CREAM, center=centre)
+        sq = theme.SQUARE
+        done = int(self.progress)                      # squares already reached: path[0..done]
+        visited = set(self.path[:done + 1])
+        theme.draw_board_frame(surface, pygame.Rect(theme.BOARD_X, theme.BOARD_Y, theme.BOARD_PIXELS,
+                                                    theme.BOARD_PIXELS), 16)
+        for y in range(8):
+            for x in range(8):
+                dark = (x + y) % 2 == 1
+                rect = cell((x, y))
+                theme.draw_square(surface, rect, dark, (x, y) in visited)
+                label = theme.COORD_DARK if dark and (x, y) not in visited else theme.COORD_LIGHT
+                if x == 0:                                   # ranks 8..1, top-left corner
+                    theme.draw_text(surface, str(8 - y), 14, label, (rect.x + 4, rect.y + 3), bold=True)
+                if y == 7:                                   # files a..h, bottom-right corner
+                    theme.draw_text(surface, "abcdefgh"[x], 14, label, (rect.right - 4, rect.bottom - 3),
+                                    bold=True, anchor="bottomright")
+        if self.job is not None:
+            veil = pygame.Surface((sq * 8, sq * 8), pygame.SRCALPHA)
+            veil.fill((0, 0, 0, 150))
+            surface.blit(veil, (theme.BOARD_X, theme.BOARD_Y))
+            what = "moves tried" if self.is_csp else "generations"
+            theme.draw_text(surface, "Computing...  %d %s" % (self.job.generation, what), 26, theme.TEXT,
+                            (theme.BOARD_X + sq * 4, theme.BOARD_Y + sq * 4), bold=True, anchor="center")
+            return
         if len(self.path) < 2:
             return
-        for number, square in enumerate(self.path):
-            if self.progress >= number:
-                fade = 1 if number == 0 else min(self.progress - number, 1)
-                self._draw_visited(surface, square, number + 1, fade)
-        pygame.draw.rect(surface, START_BLUE, square_rect(self.path[0]).inflate(-4, -4), 4, border_radius=8)
-        current = self.path[int(self.progress)]
-        pygame.draw.rect(surface, CURRENT_YELLOW, square_rect(current).inflate(-4, -4), 4, border_radius=8)
-        self._draw_cat(surface)
-
-    def _draw_visited(self, surface, square, number, fade):
-        # Tints the square and writes its order number; fade goes from 0 to 1.
-        tint = pygame.Surface((SQUARE, SQUARE), pygame.SRCALPHA)
-        tint.fill((*TINT, round(TINT_ALPHA * fade)))
-        rect = square_rect(square)
-        surface.blit(tint, rect)
-        light = sum(square) % 2 == 0
-        numbers = self.img["numbers_brown"] if light else self.img["numbers_cream"]
-        image = numbers[number].copy()
-        image.set_alpha(round(255 * fade))
-        surface.blit(image, image.get_rect(center=rect.center))
-
-    def _draw_cat(self, surface):
-        path = self.path
-        jump = min(int(self.progress), len(path) - 2)
+        points = [center(p) for p in self.path[:done + 1]]
+        jump = min(done, len(self.path) - 2)
         t = min(self.progress - jump, 1)
-        x1, y1 = square_rect(path[jump]).center
-        x2, y2 = square_rect(path[jump + 1]).center
-        x, y = x1 + (x2 - x1) * t, y1 + (y2 - y1) * t
-        height = math.sin(math.pi * t) * JUMP_HEIGHT
-        feet = (round(x), round(y) + SQUARE // 2 - 6)
+        (x1, y1), (x2, y2) = center(self.path[jump]), center(self.path[jump + 1])
+        here = (x1 + (x2 - x1) * t, y1 + (y2 - y1) * t) if self.progress < self.jumps() else center(self.path[-1])
+        if len(points) > 1 or self.progress > done:
+            lines = pygame.Surface((theme.WIDTH, theme.HEIGHT), pygame.SRCALPHA)
+            pygame.draw.lines(lines, theme.ARROW, False, points + [here], 4)
+            surface.blit(lines, (0, 0))
+        for number, square in enumerate(self.path[:done]):       # the square under the cat is hidden
+            theme.draw_text(surface, str(number + 1), 16, theme.NUMBER, center(square), bold=True,
+                            anchor="center")
+        pygame.draw.rect(surface, START_BLUE, cell(self.path[0]).inflate(-4, -4), 4, border_radius=6)
+        pygame.draw.rect(surface, CURRENT_YELLOW, cell(self.path[min(done, len(self.path) - 1)]).inflate(-4, -4),
+                         4, border_radius=6)
+        moving = self.progress < self.jumps()
+        facing = (x2 - x1, y2 - y1)
+        # forward: the piece is seen in profile; at rest (end of the tour): the cat looks at us
+        theme.draw_piece(surface, here, sq, facing, t if moving else None, None if moving else "front")
 
-        dx, dy = x2 - x1, y2 - y1                     # the dominant axis picks the sprite row
-        if abs(dy) > abs(dx):
-            row, flip = ("back" if dy < 0 else "front"), False
+    def _draw_panel(self, surface, mouse):
+        x, w = theme.PANEL_X, theme.PANEL_W
+        theme.draw_side_panel(surface, (x - 16, 16, w + 32, 698))
+        title = "Backtracking replay" if self.is_csp else "Genetic algorithm replay"
+        theme.draw_text(surface, title, 24, theme.TEXT, (x, 50), bold=True)
+
+        # 1. where the cat is in the tour
+        theme.draw_card(surface, (x, 92, w, 96))
+        reached = min(int(self.progress) + 1, len(self.path)) if self.path else 0
+        theme.draw_text(surface, "Squares visited by the cat", 14, theme.MUTED, (x + 16, 102))
+        theme.draw_text(surface, "%d / %d" % (reached, NB_SQUARES), 36, theme.TEXT, (x + 16, 128), bold=True)
+
+        # 2. what the algorithm did
+        theme.draw_card(surface, (x, 200, w, 130))
+        theme.draw_text(surface, "What the algorithm did", 14, theme.MUTED, (x + 16, 210))
+        if self.stats is None:
+            theme.draw_text(surface, "Computing...", 20, theme.GOLD, (x + 16, 250), bold=True)
         else:
-            row, flip = "side", dx < 0                # the side cat looks to the right
-        frames = self.img["cats"][row]
-        image = frames[pygame.time.get_ticks() // IDLE_FRAME_MS % len(frames)]
-        if flip:
-            image = pygame.transform.flip(image, True, False)
+            count, seconds, squares, _average, found = self.stats
+            names = ("Moves tried" if self.is_csp else "Generations", "Time", "Squares")
+            values = (str(count), "%.2f s" % seconds, str(squares))
+            for i, (name, value) in enumerate(zip(names, values)):
+                cx = x + 16 + i * (w - 16) // 3
+                theme.draw_text(surface, name, 13, theme.MUTED, (cx, 242))
+                theme.draw_text(surface, value, 24, theme.GOLD if found else theme.TEXT, (cx, 262), bold=True)
+            theme.draw_text(surface, "Tour found!" if found else "No full tour found", 15,
+                            theme.TEXT, (x + 16, 298), bold=True)
 
-        shadow = pygame.Surface(SHADOW_SIZE, pygame.SRCALPHA)
-        pygame.draw.ellipse(shadow, (0, 0, 0, SHADOW_ALPHA), shadow.get_rect())
-        surface.blit(shadow, shadow.get_rect(center=(feet[0], feet[1] - 4)))
-        surface.blit(image, image.get_rect(midbottom=(feet[0], feet[1] - round(height))))
-
-    def _ribbon(self, surface, title, midtop):
-        rect = self.img["ribbon"].get_rect(midtop=midtop)
-        surface.blit(self.img["ribbon"], rect)
-        write(surface, title, self.img["font_ribbon"], CREAM, center=rect.center)
-        return rect.bottom
-
-    def _bar(self, surface, values, midtop):
-        # Bar with 3 compartments, (title, value) in each.
-        rect = self.img["bar"].get_rect(midtop=midtop)
-        surface.blit(self.img["bar"], rect)
-        y = rect.top + rect.height * BAR_CENTER_Y
-        for (start, end), (title, value) in zip(BAR_COMPARTMENTS, values):
-            x = rect.left + rect.width * (start + end) / 2
-            write(surface, title, self.img["font_small"], CREAM, center=(x, y - 14))
-            write(surface, value, self.img["font_big"], GOLD, center=(x, y + 10))
-        return rect.bottom
-
-    def _draw_panel(self, surface):
-        img = self.img
-        surface.blit(img["panel"], PANEL)
-        middle = PANEL.centerx
-        y = PANEL.top + PANEL_TOP_MARGIN
-        generations, seconds, fitness, average, found = self.stats
-
-        y = self._ribbon(surface, "Result", (middle, y))
-        y = self._bar(surface, (("Generation", str(generations)), ("Time", "%.2f s" % seconds),
-                                ("Fitness", str(fitness))), (middle, y))
-        y += SECTION_GAP
-        write(surface, "Final average fitness: %.1f" % average, img["font"], CREAM, midtop=(middle, y))
-        y += LINE_HEIGHT + SECTION_GAP
-
-        y = self._ribbon(surface, "Parameters", (middle, y))
-        settings = self.app.settings
-        write(surface, "Population: %d   Tournament: %d" % (settings["population"], settings["tournament"]),
-              img["font"], CREAM, midtop=(middle, y))
-        write(surface, "Mutation probability: %s" % settings["mutation"], img["font"], CREAM,
-              midtop=(middle, y + LINE_HEIGHT))
-        y += 2 * LINE_HEIGHT + SECTION_GAP
-
-        y = self._ribbon(surface, "History", (middle, y))
-        history = self.app.history
-        first = max(0, len(history) - RUNS_SHOWN)
-        for line, (gens, secs) in enumerate(history[first:]):
+        # 3. history
+        theme.draw_card(surface, (x, 342, w, 180))
+        theme.draw_text(surface, "Runs watched", 14, theme.MUTED, (x + 16, 352))
+        unit = "moves" if self.is_csp else "generations"
+        first = max(0, len(self.history) - RUNS_SHOWN)
+        for line, (count, secs) in enumerate(self.history[first:]):
             number = first + line + 1
-            color = GOLD if number == len(history) else CREAM
-            write(surface, "Run %d: %d generations, %.2f s" % (number, gens, secs), img["font"],
-                  color, midtop=(middle, y + line * LINE_HEIGHT))
+            color = theme.GOLD if number == len(self.history) else theme.TEXT
+            theme.draw_text(surface, "Run %d: %d %s, %.2f s" % (number, count, unit, secs), 14, color,
+                            (x + 16, 378 + line * 17))
 
-    def _draw_buttons(self, surface):
-        img = self.img
-        surface.blit(img["pause" if self.playing else "play"], PLAY_RECT)
-        surface.blit(img["back"], AGAIN_RECT)
-        surface.blit(img["gear"], SPEED_RECT)
-        write(surface, "x%s" % SPEEDS[self.speed_i], img["font_big"], GOLD,
-              midleft=(SPEED_RECT.right + 12, SPEED_RECT.centery))
-        right = COLUMN_X + COLUMN_W
-        for i, label in enumerate(("Space: play / pause", "R: new run", "Esc: menu")):
-            write(surface, label, img["font"], WHITE_CREAM,
-                  midright=(right, SPEED_RECT.centery + (i - 1) * LINE_HEIGHT))
+        for button in self.buttons:
+            button.draw(surface, mouse)

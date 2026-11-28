@@ -1,4 +1,4 @@
-# A single reusable widget: a chess.com-style 3D button.
+# A single reusable widget: a 3D button, drawn by the current style (see gui/theme.py).
 
 import pygame
 
@@ -13,16 +13,15 @@ class Button:
         self.style = style or theme.BTN_SECONDARY
         self.size = size
         self.enabled = True
+        self.selected = False           # lit with a border: the action this button started is running
 
     def draw(self, surface, mouse_pos):
         face, hover, shadow = self.style if self.enabled else theme.BTN_DISABLED
         hovered = self.enabled and self.rect.collidepoint(mouse_pos)
-        # bottom shadow gives the "3D" chess.com look
-        pygame.draw.rect(surface, shadow, self.rect.move(0, 4), border_radius=8)
-        pygame.draw.rect(surface, hover if hovered else face, self.rect, border_radius=8)
-        color = theme.TEXT if self.enabled else theme.MUTED
-        theme.draw_text(surface, self.label, self.size, color, self.rect.center, bold=True,
-                        anchor="center")
+        theme.draw_button(surface, self.rect, self.label, hover if hovered else face, shadow,
+                          self.size, self.enabled)
+        if self.selected:
+            pygame.draw.rect(surface, theme.SELECT, self.rect.inflate(8, 8), 3, border_radius=10)
 
     def handle_event(self, event):
         # Returns True if the click was consumed by this button.

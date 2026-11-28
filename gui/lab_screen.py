@@ -9,7 +9,6 @@ import pygame
 
 from board import NB_GENES, NB_SQUARES, on_board, square_name
 from gui import theme
-from gui.assets_loader import knight_image
 from gui.widgets import Button
 from population import Population
 
@@ -44,7 +43,7 @@ class LabScreen:
         self.new_run()
 
     def _build_buttons(self):
-        y, h = 676, 50
+        y, h = 684, 50
         self.step_btn = Button((BOARD_X, y, 150, h), "Step (Space)", self.step, theme.BTN_PRIMARY, 18)
         self.auto_btn = Button((BOARD_X + 160, y, 130, h), "Auto (A)", self.toggle_auto, size=18)
         self.speed_btn = Button((BOARD_X + 300, y, 110, h), "", self.cycle_speed, size=17)
@@ -150,24 +149,20 @@ class LabScreen:
     def _draw_board(self, surface):
         best = self.best
         valid = best.path[:best.fitness]
-        self._text(surface, "Algorithm lab", 28, theme.TEXT, (BOARD_X, 8), bold=True)
+        self._text(surface, "Algorithm lab", 28, theme.TEXT, (BOARD_X, 2), bold=True)
         self._text(surface, "Best knight of generation %d" % self.population.generation, 17,
-                   theme.MUTED, (BOARD_X, 44))
+                   theme.MUTED, (BOARD_X, 36))
+        theme.draw_board_frame(surface, pygame.Rect(BOARD_X, BOARD_Y, 8 * SQ, 8 * SQ), 12)
         for y in range(8):
             for x in range(8):
-                dark = (x + y) % 2 == 1
-                if (x, y) in valid:
-                    color = theme.VISITED_DARK if dark else theme.VISITED_LIGHT
-                else:
-                    color = theme.DARK if dark else theme.LIGHT
-                pygame.draw.rect(surface, color, (BOARD_X + x * SQ, BOARD_Y + y * SQ, SQ, SQ))
+                rect = pygame.Rect(BOARD_X + x * SQ, BOARD_Y + y * SQ, SQ, SQ)
+                theme.draw_square(surface, rect, (x + y) % 2 == 1, (x, y) in valid)
         centers = [(BOARD_X + p[0] * SQ + SQ // 2, BOARD_Y + p[1] * SQ + SQ // 2) for p in valid]
         if len(centers) > 1:
-            pygame.draw.lines(surface, (255, 170, 0), False, centers, 3)
+            pygame.draw.lines(surface, theme.LINE, False, centers, 3)
         for number, center in enumerate(centers[:-1], 1):
-            self._text(surface, str(number), 15, (96, 120, 60), center, bold=True, anchor="center")
-        image = knight_image("w", SQ)
-        surface.blit(image, image.get_rect(center=centers[-1]))
+            self._text(surface, str(number), 15, theme.NUMBER, center, bold=True, anchor="center")
+        theme.draw_piece(surface, centers[-1], SQ)
 
         # Why the path stops: the move number `fitness` is illegal.
         if not self.found:
@@ -180,13 +175,13 @@ class LabScreen:
             else:
                 reason = "move %d leaves the board" % best.fitness
             self._text(surface, "Stops after %d squares: %s" % (best.fitness, reason), 16,
-                       theme.MUTED, (BOARD_X, BOARD_Y + 8 * SQ + 10))
+                       theme.MUTED, (BOARD_X, BOARD_Y + 8 * SQ + 14))
         else:
             self._text(surface, "All 64 squares visited exactly once!", 18, BEST_COLOR,
-                       (BOARD_X, BOARD_Y + 8 * SQ + 10), bold=True)
+                       (BOARD_X, BOARD_Y + 8 * SQ + 14), bold=True)
 
     def _card(self, surface, rect):
-        pygame.draw.rect(surface, theme.CARD, rect, border_radius=8)
+        theme.draw_card(surface, rect)
 
     def _draw_stats(self, surface):
         pop = self.population
@@ -200,9 +195,9 @@ class LabScreen:
         width = RIGHT_W // len(cells)
         for i, (title, value) in enumerate(cells):
             cx = rect.x + width * i + width // 2
-            self._text(surface, title, 14, theme.MUTED, (cx, rect.y + 14), anchor="midtop")
+            self._text(surface, title, 14, theme.MUTED, (cx, rect.y + 10), anchor="midtop")
             color = BEST_COLOR if title == "Best fitness" and self.found else theme.TEXT
-            self._text(surface, value, 28, color, (cx, rect.y + 38), bold=True, anchor="midtop")
+            self._text(surface, value, 28, color, (cx, rect.y + 30), bold=True, anchor="midtop")
         if self.found:
             note = "Tour found in %d generations" % pop.generation
         elif self.finished:
@@ -211,7 +206,7 @@ class LabScreen:
             note = "Parameters: population %d, mutation %g, tournament %d" % (
                 pop.population_size, pop.mutation_probability, pop.tournament_size)
         self._text(surface, note, 14, AVERAGE_COLOR if self.finished else theme.MUTED,
-                   (rect.centerx, rect.bottom - 22), anchor="midtop")
+                   (rect.centerx, rect.bottom - 26), anchor="midtop")
 
     def _draw_chart(self, surface):
         rect = pygame.Rect(RIGHT_X, 126, RIGHT_W, 200)
@@ -222,7 +217,7 @@ class LabScreen:
         plot = pygame.Rect(rect.x + 44, rect.y + 36, rect.w - 64, rect.h - 62)
         for value in (0, 16, 32, 48, 64):
             y = plot.bottom - plot.h * value / NB_SQUARES
-            pygame.draw.line(surface, (70, 68, 64), (plot.x, y), (plot.right, y))
+            pygame.draw.line(surface, theme.GRID, (plot.x, y), (plot.right, y))
             self._text(surface, str(value), 12, theme.MUTED, (plot.x - 6, y), anchor="midright")
         count = len(self.best_history)
         stride = max(1, count // CHART_POINTS)

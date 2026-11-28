@@ -9,8 +9,8 @@ Rule of the project: **no file is added to `specs/assets/` without a line in thi
 |------|------------|--------|--------|---------|----------|
 | `specs/assets/pieces/wN.svg` | White knight (cburnett set) | Colin M.L. Burnett | https://github.com/lichess-org/lila/blob/master/public/piece/cburnett/wN.svg | GPLv2+ | 2026-11-20, `curl` of the raw file, 648 bytes |
 | `specs/assets/pieces/bN.svg` | Black knight (cburnett set) | Colin M.L. Burnett | https://github.com/lichess-org/lila/blob/master/public/piece/cburnett/bN.svg | GPLv2+ | 2026-11-20, `curl` of the raw file, 837 bytes |
-| `assets/ui.png` | Wooden UI sheet (board, panels, buttons) of the replay screen | TO FILL IN | TO FILL IN | TO FILL IN | TO FILL IN |
-| `assets/cat_sprite.png` | Cat sprite sheet (idle frames, 3 directions) | TO FILL IN | TO FILL IN | TO FILL IN | TO FILL IN |
+| `assets/ui.png` | Wooden UI sheet (board, panels, buttons) of the first replay screen; **no longer used by the code**: the wooden look is now drawn by `gui/wood.py`, the colours were sampled on this sheet | TO FILL IN | TO FILL IN | TO FILL IN | TO FILL IN |
+| `assets/cat_sprite.png` | Cat sprite sheet (idle frames, 3 directions), used by `gui/cat.py` (the piece of the style "Cavalier Jack") | TO FILL IN | TO FILL IN | TO FILL IN | TO FILL IN |
 
 **The two rows above come from the `adem` branch, where no source was written down: fill them in
 (author, URL, licence, date) before handing in.**

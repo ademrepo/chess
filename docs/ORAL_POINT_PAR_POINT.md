@@ -120,7 +120,7 @@ while True:
     population.create_new_generation()            # nouvelle génération
 ```
 
-Lancer : `python main.py` (interface : menu, paramètres, laboratoire, jeu, chat) ou
+Lancer : `python main.py` (interface : choix du style, menu, paramètres, laboratoire, jeu, chat ; le projet 3 est dans `csp/README.md`) ou
 `python main.py --console --seed 1` (terminal, reproductible).
 
 Questions probables
